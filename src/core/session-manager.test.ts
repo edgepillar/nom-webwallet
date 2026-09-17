@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KeyStore } from 'znn-typescript-sdk'
 
-import { SessionManager } from './session-manager'
+import { SessionManager } from '@/core/session-manager'
 
 const SESSION_TIMEOUT_MS = 1_000
+const DEFAULT_SESSION_TIMEOUT_MS = 30 * 60 * 1000
 const START_TIME = new Date('2026-01-01T00:00:00.000Z')
 
 const createOpaqueKeyStore = () => ({}) as KeyStore
@@ -26,6 +27,22 @@ describe('SessionManager', () => {
 
     expect(manager.isUnlocked('address-1')).toBe(true)
     expect(manager.getKeyStore('address-1')).toBe(keyStore)
+  })
+
+  it('uses a 30-minute default timeout and expires only after the deadline', () => {
+    const managerAtDeadline = new SessionManager()
+    const managerAfterDeadline = new SessionManager()
+    const keyStore = createOpaqueKeyStore()
+
+    managerAtDeadline.unlock('address-1', keyStore)
+    managerAfterDeadline.unlock('address-2', createOpaqueKeyStore())
+    vi.advanceTimersByTime(DEFAULT_SESSION_TIMEOUT_MS)
+
+    expect(managerAtDeadline.getKeyStore('address-1')).toBe(keyStore)
+
+    vi.advanceTimersByTime(1)
+
+    expect(managerAfterDeadline.getKeyStore('address-2')).toBeNull()
   })
 
   it('locks one address without locking another', () => {
@@ -60,7 +77,12 @@ describe('SessionManager', () => {
     vi.advanceTimersByTime(SESSION_TIMEOUT_MS + 1)
 
     expect(manager.getKeyStore('address-1')).toBeNull()
+
+    // A retained expired entry would become unlocked again after the clock rewinds.
+    vi.setSystemTime(START_TIME)
+
     expect(manager.isUnlocked('address-1')).toBe(false)
+    expect(manager.getKeyStore('address-1')).toBeNull()
     expect(manager.getUnlockedAddresses()).toEqual([])
   })
 
@@ -74,6 +96,10 @@ describe('SessionManager', () => {
     vi.advanceTimersByTime(SESSION_TIMEOUT_MS - 600 + 1)
 
     expect(manager.getUnlockedAddresses()).toEqual(['address-2'])
+
+    // Rewind before retrieval so the listing must have removed the expired entry.
+    vi.setSystemTime(new Date(START_TIME.getTime() + 600))
+
     expect(manager.getKeyStore('address-1')).toBeNull()
     expect(manager.getKeyStore('address-2')).toBe(recentKeyStore)
   })

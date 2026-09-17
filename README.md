@@ -77,8 +77,8 @@ Sending a transaction requires the active wallet to be unlocked — if it's lock
 | `npm run lint:fix`        | Run ESLint with autofix                               |
 | `npm run format`          | Format with Prettier                                  |
 
-> Automated tests currently cover `SessionManager`. Type checking and linting remain correctness
-> checks.
+> Vitest provides focused unit coverage for `SessionManager`. Type checking and linting remain
+> correctness checks.
 
 ## Tech Stack
 
